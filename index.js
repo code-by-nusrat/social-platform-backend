@@ -50,13 +50,6 @@ app.get('/upcoming-events/:id',async(req,res)=>{
   const result = await createEventCollection.findOne({_id:new ObjectId(id)}) 
   res.send(result)
 })
-//8
-//api url--http://localhost:5000/joined-event
-// app.post('/joined-event',async(req,res)=>{
-//   const data =req.body
-//   const  result =await joinEventCollection.insertOne(data)
-//   res.send(result)
-// })
 
 //8
 //api url--http://localhost:5000/joined-event
