@@ -97,32 +97,32 @@ app.get('/recent-events', async (req, res) => {
 })
 
 //11 - get all events created by one user
-// app.get('/my-events/:email', async (req, res) => {
-//   const email = req.params.email
+app.get('/my-events/:email', async (req, res) => {
+  const email = req.params.email
 
-//   const result = await createEventCollection
-//     .find({ creatorEmail: email })
-//     .sort({ date: 1 })
-//     .toArray()
+  const result = await createEventCollection
+    .find({ creatorEmail: email })
+    .sort({ date: 1 })
+    .toArray()
 
-//   res.send(result)
-// })
-
-//12 - update an event (only the owner can)
-app.put('/update-event/:id', async (req, res) => {
-  const id = req.params.id
-  const { email, title, description, type, thumbnail, location, date } = req.body
-
-  const result = await createEventCollection.updateOne(
-    { _id: new ObjectId(id), creatorEmail: email },   // find: this event AND this owner
-    { $set: { title, description, type, thumbnail, location, date } }   // change these fields
-  )
-
-  if (result.matchedCount === 0) {
-    return res.status(403).send({ message: 'You can only update your own events' })
-  }
   res.send(result)
 })
+
+//12 - update an event (only the owner can)
+// app.put('/update-event/:id', async (req, res) => {
+//   const id = req.params.id
+//   const { email, title, description, type, thumbnail, location, date } = req.body
+
+//   const result = await createEventCollection.updateOne(
+//     { _id: new ObjectId(id), creatorEmail: email },   // find: this event AND this owner
+//     { $set: { title, description, type, thumbnail, location, date } }   // change these fields
+//   )
+
+//   if (result.matchedCount === 0) {
+//     return res.status(403).send({ message: 'You can only update your own events' })
+//   }
+//   res.send(result)
+// })
 
 //13 - delete an event (only the owner can)
 app.delete('/delete-event/:id', async (req, res) => {
