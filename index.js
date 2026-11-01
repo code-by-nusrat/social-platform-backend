@@ -27,6 +27,7 @@ const createEventCollection =db.collection("create-event")
 const joinEventCollection =db.collection("joined-event")
 
 
+
 //5
 //http://localhost:5000/create-event
 app.post('/create-event',async(req,res)=>{
@@ -37,8 +38,10 @@ app.post('/create-event',async(req,res)=>{
 })
 
 //6
-app.get('/upcoming-events',async(req,res)=>{
-  const result =await createEventCollection.find().toArray()  
+
+app.get('/upcoming-events', async (req, res) => {
+  const today = new Date().toLocaleDateString('en-CA')
+  const result = await createEventCollection.find({ date: { $gte: today } }).toArray()
   res.send(result)
 })
 //7
@@ -49,16 +52,99 @@ app.get('/upcoming-events/:id',async(req,res)=>{
 })
 //8
 //api url--http://localhost:5000/joined-event
-app.post('/joined-event',async(req,res)=>{
-  const data =req.body
-  const  result =await joinEventCollection.insertOne(data)
-  res.send(result)
-})
-// app.get('/create-event/:email',async(req,res)=>{
-//   const {email} =req.params
-//   const result=await joinedEventCollection.find({email:email}).toArray()
+// app.post('/joined-event',async(req,res)=>{
+//   const data =req.body
+//   const  result =await joinEventCollection.insertOne(data)
 //   res.send(result)
 // })
+
+//8
+//api url--http://localhost:5000/joined-event
+app.post('/joined-event', async (req, res) => {
+  const { eventId, email } = req.body
+
+  const alreadyJoined = await joinEventCollection.findOne({ eventId, email })
+  if (alreadyJoined) {
+    return res.status(409).send({ message: 'You already joined this event' })
+  }
+
+  const result = await joinEventCollection.insertOne(req.body)
+
+  // add 1 to the event's joined count
+  await createEventCollection.updateOne(
+    { _id: new ObjectId(eventId) },
+    { $inc: { participants: 1 } }
+  )
+
+  res.send(result)
+})
+//9
+
+app.get('/joined-event/:email',async(req,res)=>{
+  const {email} =req.params
+  const result=await joinEventCollection.find({email:email}).toArray()
+  res.send(result)
+})
+//10
+app.get('/recent-events', async (req, res) => {
+  const today = new Date().toLocaleDateString('en-CA')
+  const result = await createEventCollection
+    .find({ date: { $gte: today } })
+    .sort({ date: 1 })
+    .limit(6)
+    .toArray()
+  res.send(result)
+})
+
+//11 - get all events created by one user
+app.get('/my-events/:email', async (req, res) => {
+  const email = req.params.email
+
+  const result = await createEventCollection
+    .find({ creatorEmail: email })
+    .sort({ date: 1 })
+    .toArray()
+
+  res.send(result)
+})
+
+//12 - update an event (only the owner can)
+app.put('/update-event/:id', async (req, res) => {
+  const id = req.params.id
+  const { email, title, description, type, thumbnail, location, date } = req.body
+
+  const result = await createEventCollection.updateOne(
+    { _id: new ObjectId(id), creatorEmail: email },   // find: this event AND this owner
+    { $set: { title, description, type, thumbnail, location, date } }   // change these fields
+  )
+
+  if (result.matchedCount === 0) {
+    return res.status(403).send({ message: 'You can only update your own events' })
+  }
+  res.send(result)
+})
+
+//13 - delete an event (only the owner can)
+app.delete('/delete-event/:id', async (req, res) => {
+  const id = req.params.id
+  const email = req.query.email
+
+  const result = await createEventCollection.deleteOne(
+    { _id: new ObjectId(id), creatorEmail: email }   // find: this event AND this owner
+  )
+
+  if (result.deletedCount === 0) {
+    return res.status(403).send({ message: 'You can only delete your own events' })
+  }
+
+  // also remove the people who joined this event
+  await joinEventCollection.deleteMany({ eventId: id })
+
+  res.send(result)
+})
+
+
+
 //2
 //http:/localhost:5000
 app.get('/',(rew,res)=>{
