@@ -97,16 +97,16 @@ app.get('/recent-events', async (req, res) => {
 })
 
 //11 - get all events created by one user
-app.get('/my-events/:email', async (req, res) => {
-  const email = req.params.email
+// app.get('/my-events/:email', async (req, res) => {
+//   const email = req.params.email
 
-  const result = await createEventCollection
-    .find({ creatorEmail: email })
-    .sort({ date: 1 })
-    .toArray()
+//   const result = await createEventCollection
+//     .find({ creatorEmail: email })
+//     .sort({ date: 1 })
+//     .toArray()
 
-  res.send(result)
-})
+//   res.send(result)
+// })
 
 //12 - update an event (only the owner can)
 app.put('/update-event/:id', async (req, res) => {
