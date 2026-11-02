@@ -30,34 +30,14 @@ if (!mongoClient) {
 const db = mongoClient.db("social-platform")
 const createEventCollection = db.collection("create-event")
 const joinEventCollection = db.collection("joined-event")
+//15
+// today's date (YYYY-MM-DD) in Bangladesh time
+// Vercel runs in UTC, so without this, yesterday's events stay visible until 6 AM Dhaka time
+const todayInDhaka = () =>
+  new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' })
 
 //14
-// const verifyToken =async (req, res, next) => {
-//   const authHeader = req.headers.authorization
-//   //console.log(authHeader)
-//   if (!authHeader) {
-//     return res.status(401).send({ message: "Unauthorized" })
-//   }
-   
-// const token =authHeader.split(" ")[1]
-// if(!token){
-//   return res.status(401).send({msg:"Unauthorized"})
-// }
 
-
-// const JWKS =createRemoteJWKSet(new URL("http://localhost:3000/api/auth/jwks"))
-// try{
-// const {payload} =await jwtVerify(token, JWKS)
-// next()
-// }catch(error){
-//   return res.status(500).send({msg:"Server Error!"})
-// }
-
-
-
-//   console.log(payload)
-  
-// }
 const JWKS = createRemoteJWKSet(new URL(`${process.env.CLIENT_URL}/api/auth/jwks`))
 
 const verifyToken = async (req, res, next) => {
@@ -82,20 +62,29 @@ const verifyToken = async (req, res, next) => {
 
 //5
 //http://localhost:5000/create-event
-app.post('/create-event',verifyToken, async (req, res) => {
-  const data = req.body
-  const result = await createEventCollection.insertOne(data)
-  console.log(result)
-  res.send(result)
-})
+// app.post('/create-event',verifyToken, async (req, res) => {
+//   const data = req.body
+//   const result = await createEventCollection.insertOne(data)
+//   console.log(result)
+//   res.send(result)
+// })
+app.post('/create-event', verifyToken, async (req, res) => {
+  const data = {
+    ...req.body,
+    creatorEmail: req.user.email
+  };
 
+  const result = await createEventCollection.insertOne(data);
+
+  res.status(201).send(result);
+});
 //6
-
 app.get('/upcoming-events', async (req, res) => {
-  const today = new Date().toLocaleDateString('en-CA')
+  const today = todayInDhaka()
   const result = await createEventCollection.find({ date: { $gte: today } }).toArray()
   res.send(result)
 })
+
 //7
 app.get('/upcoming-events/:id', async (req, res) => {
 
@@ -106,38 +95,107 @@ app.get('/upcoming-events/:id', async (req, res) => {
 
 //8
 //api url--http://localhost:5000/joined-event
-app.post('/joined-event',verifyToken, async (req, res) => {
-  const { eventId, email } = req.body
-  // if(!authHeader){
-  //   return res.status(401).send({msg:"Unauthorized!"})
-  // }
-  const alreadyJoined = await joinEventCollection.findOne({ eventId, email })
+// app.post('/joined-event',verifyToken, async (req, res) => {
+//   const { eventId, email } = req.body
+//   // if(!authHeader){
+//   //   return res.status(401).send({msg:"Unauthorized!"})
+//   // }
+//   const alreadyJoined = await joinEventCollection.findOne({ eventId, email })
+//   if (alreadyJoined) {
+//     return res.status(409).send({ message: 'You already joined this event' })
+//   }
+
+//   const result = await joinEventCollection.insertOne(req.body)
+
+//   // add 1 to the event's joined count
+//   await createEventCollection.updateOne(
+//     { _id: new ObjectId(eventId) },
+//     { $inc: { participants: 1 } }
+//   )
+
+//   res.send(result)
+// })
+
+app.post('/joined-event', verifyToken, async (req, res) => {
+  const { eventId, name, title, description, type, thumbnail, location, date } = req.body;
+  const email = req.user.email;
+
+  const alreadyJoined = await joinEventCollection.findOne({ eventId, email });
+
   if (alreadyJoined) {
-    return res.status(409).send({ message: 'You already joined this event' })
+    return res.status(409).send({
+      message: 'You already joined this event'
+    });
   }
 
-  const result = await joinEventCollection.insertOne(req.body)
+  const result = await joinEventCollection.insertOne({
+    eventId,
+    email,
+    name,
+    title,
+    description,
+    type,
+    thumbnail,
+    location,
+    date
+  });
 
-  // add 1 to the event's joined count
   await createEventCollection.updateOne(
     { _id: new ObjectId(eventId) },
     { $inc: { participants: 1 } }
-  )
+  );
 
-  res.send(result)
-})
+  res.send(result);
+});
 //9
 
-app.get('/joined-event/:email',verifyToken,
-  async (req, res) => {
+// app.get('/joined-event/:email',verifyToken,
+//   async (req, res) => {
 
-    const { email } = req.params
-    const result = await joinEventCollection.find({ email: email }).toArray()
-    res.send(result)
-  })
+//     const { email } = req.params
+//     const result = await joinEventCollection.find({ email: email }).toArray()
+//     res.send(result)
+//   })
+
+// Get joined events of the logged-in user
+app.get('/joined-event', verifyToken, async (req, res) => {
+  try {
+    const email = req.user.email;
+
+    if (!email) {
+      return res.status(401).send({
+        message: "Email not found in JWT token",
+      });
+    }
+
+    const result = await joinEventCollection
+      .find({ email })
+      .toArray();
+
+    res.status(200).send(result);
+
+  } catch (error) {
+    console.error("Get joined events error:", error);
+
+    res.status(500).send({
+      message: "Failed to fetch joined events",
+    });
+  }
+});
 //10
+// app.get('/recent-events', async (req, res) => {
+//   const today = new Date().toLocaleDateString('en-CA')
+//   const result = await createEventCollection
+//     .find({ date: { $gte: today } })
+//     .sort({ date: 1 })
+//     .limit(6)
+//     .toArray()
+//   res.send(result)
+// })
+
+
 app.get('/recent-events', async (req, res) => {
-  const today = new Date().toLocaleDateString('en-CA')
+  const today = todayInDhaka()
   const result = await createEventCollection
     .find({ date: { $gte: today } })
     .sort({ date: 1 })
@@ -147,17 +205,34 @@ app.get('/recent-events', async (req, res) => {
 })
 
 //11 - get all events created by one user
-app.get('/my-events/:email',verifyToken, async (req, res) => {
-  const email = req.params.email
+// app.get('/manage-event/:email',verifyToken, async (req, res) => {
+//   const email = req.params.email
 
-  const result = await createEventCollection
-    .find({ creatorEmail: email })
-    .sort({ date: 1 })
-    .toArray()
+//   const result = await createEventCollection
+//     .find({ creatorEmail: email })
+//     .sort({ date: 1 })
+//     .toArray()
 
-  res.send(result)
-})
+//   res.send(result)
+// })
+app.get('/manage-event', verifyToken, async (req, res) => {
+  try {
+    const email = req.user.email;
 
+    const result = await createEventCollection
+      .find({ creatorEmail: email })
+      .sort({ date: 1 })
+      .toArray();
+
+    res.status(200).send(result);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({
+      message: 'Failed to fetch your events'
+    });
+  }
+});
 //12 - update an event (only the owner can)
 app.put('/update-event/:id', async (req, res) => {
   const id = req.params.id
