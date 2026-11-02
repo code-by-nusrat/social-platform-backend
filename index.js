@@ -4,8 +4,8 @@ import 'dotenv/config'
 import cors from 'cors'
 import { createRemoteJWKSet,jwtVerify } from 'jose';
 const app = express()
-const PORT = 5000
-
+// const PORT = 5000
+const PORT = process.env.PORT || 5000;
 //4
 app.use(cors())
 app.use(express.json())
@@ -24,6 +24,9 @@ export async function connectToMongoDB() {
   }
 }
 const mongoClient = await connectToMongoDB()
+if (!mongoClient) {
+    throw new Error("MongoDB connection failed");
+}
 const db = mongoClient.db("social-platform")
 const createEventCollection = db.collection("create-event")
 const joinEventCollection = db.collection("joined-event")
@@ -201,3 +204,4 @@ app.get('/', (rew, res) => {
 app.listen(PORT, () => {
   console.log(`server is running at ${PORT}`)
 })
+export default app
