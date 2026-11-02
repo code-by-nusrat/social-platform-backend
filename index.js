@@ -1,15 +1,17 @@
 import express from 'express'
 import { MongoClient, ObjectId } from 'mongodb';
-import 'dotenv/config' 
+import 'dotenv/config'
 import cors from 'cors'
-const app =express()
-const PORT= 5000
+import { createRemoteJWKSet,jwtVerify } from 'jose';
+const app = express()
+const PORT = 5000
 
 //4
 app.use(cors())
 app.use(express.json())
-//3
 
+
+//3
 const client = new MongoClient(process.env.MONGODB_URI);
 
 export async function connectToMongoDB() {
@@ -21,18 +23,65 @@ export async function connectToMongoDB() {
     console.dir(err);
   }
 }
-const mongoClient =await connectToMongoDB()
-const db =mongoClient.db("social-platform")
-const createEventCollection =db.collection("create-event")
-const joinEventCollection =db.collection("joined-event")
+const mongoClient = await connectToMongoDB()
+const db = mongoClient.db("social-platform")
+const createEventCollection = db.collection("create-event")
+const joinEventCollection = db.collection("joined-event")
 
+//14
+// const verifyToken =async (req, res, next) => {
+//   const authHeader = req.headers.authorization
+//   //console.log(authHeader)
+//   if (!authHeader) {
+//     return res.status(401).send({ message: "Unauthorized" })
+//   }
+   
+// const token =authHeader.split(" ")[1]
+// if(!token){
+//   return res.status(401).send({msg:"Unauthorized"})
+// }
+
+
+// const JWKS =createRemoteJWKSet(new URL("http://localhost:3000/api/auth/jwks"))
+// try{
+// const {payload} =await jwtVerify(token, JWKS)
+// next()
+// }catch(error){
+//   return res.status(500).send({msg:"Server Error!"})
+// }
+
+
+
+//   console.log(payload)
+  
+// }
+const JWKS = createRemoteJWKSet(new URL(`${process.env.CLIENT_URL}/api/auth/jwks`))
+
+const verifyToken = async (req, res, next) => {
+  const authHeader = req.headers.authorization
+
+  if (!authHeader?.startsWith('Bearer ')) {
+    return res.status(401).send({ message: 'Unauthorized' })
+  }
+
+  try {
+    const token = authHeader.split(' ')[1]
+    const { payload } = await jwtVerify(token, JWKS)
+    console.log('payload:', payload)
+    req.user = payload
+    next()
+  } catch (err) {
+    console.error('JWT error:', err.message)
+    return res.status(401).send({ message: 'Unauthorized' })
+  }
+}
 
 
 //5
 //http://localhost:5000/create-event
-app.post('/create-event',async(req,res)=>{
-  const data =req.body
-  const result =await  createEventCollection.insertOne(data)
+app.post('/create-event',verifyToken, async (req, res) => {
+  const data = req.body
+  const result = await createEventCollection.insertOne(data)
   console.log(result)
   res.send(result)
 })
@@ -45,17 +94,20 @@ app.get('/upcoming-events', async (req, res) => {
   res.send(result)
 })
 //7
-app.get('/upcoming-events/:id',async(req,res)=>{
-  const{id}=req.params
-  const result = await createEventCollection.findOne({_id:new ObjectId(id)}) 
+app.get('/upcoming-events/:id', async (req, res) => {
+
+  const { id } = req.params
+  const result = await createEventCollection.findOne({ _id: new ObjectId(id) })
   res.send(result)
 })
 
 //8
 //api url--http://localhost:5000/joined-event
-app.post('/joined-event', async (req, res) => {
+app.post('/joined-event',verifyToken, async (req, res) => {
   const { eventId, email } = req.body
-
+  // if(!authHeader){
+  //   return res.status(401).send({msg:"Unauthorized!"})
+  // }
   const alreadyJoined = await joinEventCollection.findOne({ eventId, email })
   if (alreadyJoined) {
     return res.status(409).send({ message: 'You already joined this event' })
@@ -73,11 +125,13 @@ app.post('/joined-event', async (req, res) => {
 })
 //9
 
-app.get('/joined-event/:email',async(req,res)=>{
-  const {email} =req.params
-  const result=await joinEventCollection.find({email:email}).toArray()
-  res.send(result)
-})
+app.get('/joined-event/:email',verifyToken,
+  async (req, res) => {
+
+    const { email } = req.params
+    const result = await joinEventCollection.find({ email: email }).toArray()
+    res.send(result)
+  })
 //10
 app.get('/recent-events', async (req, res) => {
   const today = new Date().toLocaleDateString('en-CA')
@@ -90,7 +144,7 @@ app.get('/recent-events', async (req, res) => {
 })
 
 //11 - get all events created by one user
-app.get('/my-events/:email', async (req, res) => {
+app.get('/my-events/:email',verifyToken, async (req, res) => {
   const email = req.params.email
 
   const result = await createEventCollection
@@ -140,10 +194,10 @@ app.delete('/delete-event/:id', async (req, res) => {
 
 //2
 //http:/localhost:5000
-app.get('/',(rew,res)=>{
-    res.send({message:'server is running fine!'})
+app.get('/', (rew, res) => {
+  res.send({ message: 'server is running fine!' })
 })
 //1
-app.listen(PORT,()=>{
-    console.log(`server is running at ${PORT}`)
+app.listen(PORT, () => {
+  console.log(`server is running at ${PORT}`)
 })
