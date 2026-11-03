@@ -38,7 +38,33 @@ const todayInDhaka = () =>
 
 //14
 
-const JWKS = createRemoteJWKSet(new URL(`${process.env.CLIENT_URL}/api/auth/jwks`))
+// const JWKS = createRemoteJWKSet(new URL(`${process.env.CLIENT_URL}/api/auth/jwks`))
+// console.log('JWKS_URL:', JSON.stringify(JWKS_URL))
+
+// const verifyToken = async (req, res, next) => {
+//   const authHeader = req.headers.authorization
+
+//   if (!authHeader?.startsWith('Bearer ')) {
+//     return res.status(401).send({ message: 'Unauthorized' })
+//   }
+
+//   try {
+//     const token = authHeader.split(' ')[1]
+//     const { payload } = await jwtVerify(token, JWKS)
+//     console.log('payload:', payload)
+//     req.user = payload
+//     next()
+//   } catch (err) {
+//     console.error('JWT error:', err.message)
+//     return res.status(401).send({ message: 'Unauthorized' })
+//   }
+// }
+
+//14
+const JWKS_URL = `${process.env.CLIENT_URL}/api/auth/jwks`
+console.log('JWKS_URL:', JSON.stringify(JWKS_URL))
+
+const JWKS = createRemoteJWKSet(new URL(JWKS_URL))
 
 const verifyToken = async (req, res, next) => {
   const authHeader = req.headers.authorization
@@ -50,16 +76,19 @@ const verifyToken = async (req, res, next) => {
   try {
     const token = authHeader.split(' ')[1]
     const { payload } = await jwtVerify(token, JWKS)
-    console.log('payload:', payload)
     req.user = payload
     next()
   } catch (err) {
     console.error('JWT error:', err.message)
+    try {
+      const r = await fetch(JWKS_URL, { redirect: 'manual' })
+      console.error('JWKS status:', r.status, 'location:', r.headers.get('location'))
+    } catch (e) {
+      console.error('JWKS fetch failed:', e.message)
+    }
     return res.status(401).send({ message: 'Unauthorized' })
   }
 }
-
-
 //5
 //http://localhost:5000/create-event
 // app.post('/create-event',verifyToken, async (req, res) => {
